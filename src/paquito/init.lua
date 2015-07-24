@@ -63,37 +63,35 @@ do
   end
 end
 
--- 2. Load modules:
-local modules = {}
-do
-  for _, modulename in ipairs (configuration.modules or {}) do
-    modules [modulename] = require (modulename)
-  end
+if not configuration.modules then
+  configuration.modules = {}
 end
 
--- 3. Initialize project:
-local project
 do
   local normalize = require "paquito.normalize"
   local check     = require "paquito.check"
   local projects  = {}
-  for name, module in pairs (modules) do
-    projects [#projects+1] = Project.new {
-      name = name,
-      data = normalize (module (configuration, arguments.project))
-    }
+  for _, name in ipairs (configuration.modules.source or {}) do
+    local module  = require (name)
+    local data    = module (configuration, arguments.project)
+    if data then
+      local project = Project.new {
+        name = name,
+        data = normalize (data)
+      }
+      projects [#projects+1] = project
+    end
   end
   local refines = {}
   for i = 1, #projects do
     refines [i] = projects [i]
   end
-  project = Project.new {
+  local project = Project.new {
     name = "*whole*",
     data = {
       __refines__ = refines,
     }
   }
   project = check (project)
+  print (Yaml.dump (Project.export (Project.flatten (project))))
 end
-
-print (Yaml.dump (Project.export (Project.flatten (project))))
