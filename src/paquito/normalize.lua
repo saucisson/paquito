@@ -1,39 +1,75 @@
 return function (main)
 
   local function for_dependencies (t)
+    local removed = {}
+    for key, dependency in pairs (t) do
+      if type (key) ~= "number" then
+        t [#t+1] = dependency
+        if type (dependency) == "table" and not dependency.default then
+          dependency.default = key
+        end
+        removed [#removed+1] = key
+      end
+    end
+    for i = 1, #removed do
+      t [removed [i]] = nil
+    end
     for i = 1, #t do
       local dependency = t [i]
       if type (dependency) == "string" then
-        assert (not t [dependency])
-        t [dependency] = dependency
-      end
-      t [i] = nil
-    end
-    for key, dependency in pairs (t) do
-      if type (dependency) == "string" then
-        t [key] = {}
+        t [i] = {
+          default = t [i].default
+        }
         for target in pairs (main.configuration.targets) do
-          t [key] [target] = dependency
+          t [i] [target] = dependency
         end
       end
     end
-    for key, _target in pairs (t) do
-      for target, dependency in pairs (_target) do
-        if type (dependency) == "string" then
-          t [key] [target] = {}
+    for i = 1, #t do
+      for target in pairs (main.configuration.targets) do
+        t [i] [target] = t [i] [target]
+                      or t [i].default
+      end
+    end
+    for i = 1, #t do
+      for target, dependency in pairs (t [i]) do
+        if target ~= "default" and type (dependency) == "string" then
+          t [i] [target] = {
+            default = t [i].default
+          }
           for version in pairs (main.configuration.targets [target]) do
-            t [key] [target] [version] = dependency
+            t [i] [target] [version] = dependency
+          end
+        elseif target ~= "default" and type (dependency) == "table" then
+          dependency.default = t [i].default
+        end
+      end
+    end
+    for i = 1, #t do
+      for target in pairs (t [i]) do
+        if target ~= "default" then
+          for version in pairs (main.configuration.targets [target]) do
+            t [i] [target] [version] = t [i] [target] [version]
+                                    or t [i].default
           end
         end
       end
     end
-    for key, _target in pairs (t) do
-      for target, _version in pairs (_target) do
-        for version, dependency in pairs (_version) do
-          if type (dependency) == "string" then
-            t [key] [target] [version] = {
-              dependency,
-            }
+    for i = 1, #t do
+      t [i].default = nil
+      for _, _version in pairs (t [i]) do
+        _version.default = nil
+      end
+    end
+    for i = 1, #t do
+      for target, _version in pairs (t [i]) do
+        if target ~= "default" then
+          for version, dependency in pairs (_version) do
+            if version ~= "default" and type (dependency) == "string" then
+              t [i] [target] [version] = {
+                dependency,
+              }
+            end
           end
         end
       end
@@ -110,6 +146,8 @@ end
 --[[
 build:
   dependencies:
+    dep1: target:
+          default: dep1
     - dep1 -> target: version: - package
     dep: package
     dep: target: package
