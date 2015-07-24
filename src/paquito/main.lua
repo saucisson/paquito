@@ -87,9 +87,14 @@ function Main.__call (main, arguments)
         __refines__ = refines,
       }
     }
+    main.project = Project.export (Project.flatten (main.project, { compact = true }))
     main:normalize ()
         :check ()
-    print (Yaml.dump (Project.export (Project.flatten (main.project, { compact = true }))))
+    print (Yaml.dump (main.project))
+    for _, name in Configuration.ipairs (main.configuration.modules.target) do
+      local module  = require (name)
+      module (main)
+    end
   end
 end
 
