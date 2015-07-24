@@ -1,5 +1,4 @@
-local Http  = require "socket.http"
-local Https = require "ssl.https"
+local Http  = require "copas.http"
 
 return function (project)
   assert (type (project) == "table")
@@ -30,15 +29,8 @@ return function (project)
     assert (author ~= "")
   end
   if project.homepage then
-    if project.homepage:match "http://" then
-      local _, status = Http.request (project.homepage)
-      assert (status >= 200 and status < 400)
-    elseif project.homepage:match "https://" then
-      local _, status = Https.request (project.homepage)
-      assert (status >= 200 and status < 400)
-    else
-      assert (false)
-    end
+    local _, status = Http.request (project.homepage)
+    assert (status >= 200 and status < 400)
   end
   return project
 end

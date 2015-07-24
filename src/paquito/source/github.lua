@@ -1,5 +1,6 @@
+local Copas = require "copas"
+local Http  = require "copas.http"
 local Url   = require "socket.url"
-local Https = require "ssl.https"
 local Ltn12 = require "ltn12"
 local Mime  = require "mime"
 local Json  = require "cjson"
@@ -7,18 +8,55 @@ local Json  = require "cjson"
 return function (configuration, url)
   local t = assert (Url.parse (url))
   local function request (path)
+    local hidden = {}
     local result = {}
-    local _, status = Https.request {
-      method  = "GET",
-      url     = "https://api.github.com/" .. path,
-      headers = {
-        Accept        = "application/vnd.github.drax-preview+json",
-        Authorization = "token " .. configuration.github_token,
-      },
-      sink    = Ltn12.sink.table (result),
-    }
-    assert (status == 200)
-    return assert (Json.decode (table.concat (result)))
+    Copas.addthread (function ()
+      local received  = {}
+      local _, status = Http.request {
+        method  = "GET",
+        url     = "https://api.github.com/" .. path,
+        headers = {
+          Accept        = "application/vnd.github.drax-preview+json",
+          Authorization = "token " .. configuration.github_token,
+        },
+        sink    = Ltn12.sink.table (received),
+      }
+      local index
+      if status == 200 then
+        index = Json.decode (table.concat (received))
+      else
+        index = {}
+      end
+      setmetatable (result, {
+        __index = index,
+        __len   = function  (self) return #index         end,
+        __pairs = function  (self) return  pairs (index) end,
+        __ipairs = function (self) return ipairs (index) end,
+      })
+      Copas.wakeup (hidden.co)
+    end)
+    return setmetatable (result, {
+      __index = function (_, key)
+          hidden.co = coroutine.running ()
+          Copas.sleep (-math.huge)
+          return result [key]
+        end,
+      __len   = function ()
+        hidden.co = coroutine.running ()
+        Copas.sleep (-math.huge)
+        return #result
+      end,
+      __pairs = function ()
+        hidden.co = coroutine.running ()
+        Copas.sleep (-math.huge)
+        return pairs (result)
+      end,
+      __ipairs = function ()
+        hidden.co = coroutine.running ()
+        Copas.sleep (-math.huge)
+        return ipairs (result)
+      end,
+    })
   end
   if t.host and t.host:match "github%.com" then
     local result = {}
@@ -35,12 +73,6 @@ return function (configuration, url)
     local userinfo    = request ("/users/{{{user}}}" % {
       user = t.path [1],
     })
-    result.maintainer = userinfo.name
-    if userinfo.email and userinfo.email ~= "" then
-      result.maintainer = result.maintainer .. " <{{{email}}}>" % {
-        email = userinfo.email,
-      }
-    end
     local projectinfo = request ("/repos/{{{user}}}/{{{project}}}" % {
       user    = t.path [1],
       project = t.path [2],
@@ -53,6 +85,12 @@ return function (configuration, url)
       user    = t.path [1],
       project = t.path [2],
     })
+    result.maintainer = userinfo.name
+    if userinfo.email and userinfo.email ~= "" then
+      result.maintainer = result.maintainer .. " <{{{email}}}>" % {
+        email = userinfo.email,
+      }
+    end
     result.name        = projectinfo.name
     result.version     = "master"
     result.summary     = projectinfo.description
@@ -65,11 +103,22 @@ return function (configuration, url)
                            project = t.path [2],
                          }
     result.authors     = {}
+    local infos        = {}
     for i = 1, #contributorsinfo do
-      local info = request ("/users/{{{user}}}" % {
+      infos [i] = request ("/users/{{{user}}}" % {
         user = contributorsinfo [i].login,
       })
-      result.authors [#result.authors+1] = info.name
+    end
+    for i = 1, #infos do
+      local info = infos [i]
+      if type (info.name) == "string" then
+        result.authors [#result.authors+1] = info.name
+      end
+      if info.email and type (info.email) == "string" and info.email ~= "" then
+        result.authors [#result.authors] = result.authors [#result.authors] .. " <{{{email}}}>" % {
+          email = info.email,
+        }
+      end
     end
     return result
   end

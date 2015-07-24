@@ -15,6 +15,7 @@ description = {
 dependencies = {
   "ansicolors     >= 1",
   "c3             >= 0",
+  "copas          >= 2",
   "coronest       >= 0",
   "i18n           >= 0",
   "layeredata     >= 0",
