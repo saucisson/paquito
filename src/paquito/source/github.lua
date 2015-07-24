@@ -5,8 +5,11 @@ local Ltn12 = require "ltn12"
 local Mime  = require "mime"
 local Json  = require "cjson"
 
-return function (configuration, url)
-  local t = assert (Url.parse (url))
+return function (configuration, project)
+  if not project.source then
+    return
+  end
+  local t = assert (Url.parse (project.source))
   local function request (path)
     local hidden = {}
     local result = {}

@@ -66,6 +66,9 @@ Copas.addthread (function ()
     }
   end
 
+  if not configuration.project then
+    configuration.project = {}
+  end
   if not configuration.modules then
     configuration.modules = {}
   end
@@ -80,25 +83,29 @@ Copas.addthread (function ()
   end
 
   do
+    local project   = assert (Yaml.loadpath ("{{{path}}}/paquito.yaml" % {
+      path = arguments.project
+    }))
     local normalize = require "paquito.normalize"
     local check     = require "paquito.check"
-    local projects  = {}
+    local projects  = {
+      project,
+    }
     for _, name in Configuration.ipairs (configuration.modules.source) do
       local module  = require (name)
-      local data    = module (configuration, arguments.project)
+      local data    = module (configuration, project)
       if data then
-        local project = Project.new {
+        projects [#projects+1] = Project.new {
           name = name,
           data = normalize (data)
         }
-        projects [#projects+1] = project
       end
     end
     local refines = {}
     for i = 1, #projects do
       refines [i] = projects [i]
     end
-    local project = Project.new {
+    project = Project.new {
       name = "*whole*",
       data = {
         __refines__ = refines,
