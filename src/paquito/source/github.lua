@@ -29,9 +29,9 @@ return function (configuration, url)
       end
       setmetatable (result, {
         __index = index,
-        __len   = function  (self) return #index         end,
-        __pairs = function  (self) return  pairs (index) end,
-        __ipairs = function (self) return ipairs (index) end,
+        __len   = function  () return #index         end,
+        __pairs = function  () return  pairs (index) end,
+        __ipairs = function () return ipairs (index) end,
       })
       Copas.wakeup (hidden.co)
     end)
