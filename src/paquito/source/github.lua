@@ -1,66 +1,25 @@
-local Copas = require "copas"
-local Http  = require "copas.http"
+local Http  = require "paquito.http"
 local Url   = require "socket.url"
-local Ltn12 = require "ltn12"
 local Mime  = require "mime"
 local Json  = require "cjson"
 
-return function (configuration, project)
-  if not project.source then
+return function (main)
+  if not main.project.source then
     return
   end
-  local t = assert (Url.parse (project.source))
   local function request (path)
-    local hidden = {}
-    local result = {}
-    Copas.addthread (function ()
-      local received  = {}
-      local _, status = Http.request {
-        method  = "GET",
-        url     = "https://api.github.com/" .. path,
-        headers = {
-          Accept        = "application/vnd.github.drax-preview+json",
-          Authorization = "token " .. configuration.github_token,
-        },
-        sink    = Ltn12.sink.table (received),
-      }
-      local index
-      if status == 200 then
-        index = Json.decode (table.concat (received))
-      else
-        index = {}
-      end
-      setmetatable (result, {
-        __index = index,
-        __len   = function  () return #index         end,
-        __pairs = function  () return  pairs (index) end,
-        __ipairs = function () return ipairs (index) end,
-      })
-      Copas.wakeup (hidden.co)
-    end)
-    return setmetatable (result, {
-      __index = function (_, key)
-          hidden.co = coroutine.running ()
-          Copas.sleep (-math.huge)
-          return result [key]
-        end,
-      __len   = function ()
-        hidden.co = coroutine.running ()
-        Copas.sleep (-math.huge)
-        return #result
-      end,
-      __pairs = function ()
-        hidden.co = coroutine.running ()
-        Copas.sleep (-math.huge)
-        return pairs (result)
-      end,
-      __ipairs = function ()
-        hidden.co = coroutine.running ()
-        Copas.sleep (-math.huge)
-        return ipairs (result)
-      end,
-    })
+    local result = Http.request {
+      method  = "GET",
+      url     = "https://api.github.com/" .. path,
+      headers = {
+        Accept        = "application/vnd.github.drax-preview+json",
+        Authorization = "token " .. main.configuration.github_token,
+      },
+    }
+    assert (#result > 0)
+    return Json.decode (table.concat (result))
   end
+  local t = assert (Url.parse (main.project.source))
   if t.host and t.host:match "github%.com" then
     local result = {}
     local path   = {}
