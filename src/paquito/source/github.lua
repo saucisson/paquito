@@ -1,28 +1,42 @@
-local Http  = require "paquito.http"
-local Url   = require "socket.url"
+local Https = require "ssl.https"
+local Json  = require "dkjson"
+local Ltn12 = require "ltn12"
 local Mime  = require "mime"
-local Json  = require "cjson"
+local Url   = require "socket.url"
 
-return function (main)
-  if not main.project.source then
+local function execute (command)
+  local handle = io.popen (command)
+  local result = handle:read "*a"
+  handle:close ()
+  return result
+end
+
+return function (state)
+  local data          = state.data
+  local configuration = state.configuration
+  if not data
+  or not data.source then
     return
   end
   local function request (path)
-    local result = Http.request {
+    local received  = {}
+    local _, status = Https.request {
       method  = "GET",
-      url     = "https://api.github.com/" .. path,
+      url     = "https://api.github.com" .. path,
       headers = {
         Accept        = "application/vnd.github.drax-preview+json",
-        Authorization = "token " .. main.configuration.github_token,
+        Authorization = "token " .. configuration.github_token,
       },
+      sink = Ltn12.sink.table (received),
     }
-    assert (#result > 0)
-    return Json.decode (table.concat (result))
+    if status >= 200 and status < 400 then
+      assert (#received > 0)
+      return Json.decode (table.concat (received))
+    end
   end
-  local t = assert (Url.parse (main.project.source))
+  local t = assert (Url.parse (data.source))
   if t.host and t.host:match "github%.com" then
-    local result = {}
-    local path   = {}
+    local path = {}
     for part in t.path:gmatch "[^/]+" do
       local w = part:find "%.git$"
       if w then
@@ -47,41 +61,48 @@ return function (main)
       user    = t.path [1],
       project = t.path [2],
     })
-    result.maintainer = userinfo.name
-    if userinfo.email and userinfo.email ~= "" then
-      result.maintainer = result.maintainer .. " <{{{email}}}>" % {
-        email = userinfo.email,
-      }
-    end
-    result.name        = projectinfo.name
-    result.version     = "master"
-    result.summary     = projectinfo.description
-    result.description = readmeinfo.content and Mime.unb64 (readmeinfo.content)
-    result.license     = projectinfo.license and projectinfo.license.name
-    result.homepage    = type (projectinfo.homepage) == "string"
-                     and projectinfo.homepage
-                      or "https://github.com/{{{user}}}/{{{project}}}" % {
-                           user    = t.path [1],
-                           project = t.path [2],
-                         }
-    result.authors     = {}
-    local infos        = {}
-    for i = 1, #contributorsinfo do
-      infos [i] = request ("/users/{{{user}}}" % {
-        user = contributorsinfo [i].login,
-      })
-    end
-    for i = 1, #infos do
-      local info = infos [i]
-      if type (info.name) == "string" then
-        result.authors [#result.authors+1] = info.name
+    data.maintainer = data.maintainer
+                   or "{{{name}}} <{{{email}}}>" % {
+                        name  = userinfo.name,
+                        email = userinfo.email
+                             or "no email",
+                      }
+    data.name        = data.name
+                    or projectinfo.name
+    data.version     = data.version
+                    or execute ([[cd {{{path}}} && git describe --all]] % {
+                         path = state.arguments.path
+                       }):match "%S+"
+    data.summary     = data.summary
+                    or projectinfo.description
+    data.description = data.description
+                    or readmeinfo.content and Mime.unb64 (readmeinfo.content)
+    data.license     = data.license
+                    or projectinfo.license and projectinfo.license.name
+    data.homepage    = type (projectinfo.homepage) == "string"
+                   and projectinfo.homepage
+                    or "https://github.com/{{{user}}}/{{{project}}}" % {
+                         user    = t.path [1],
+                         project = t.path [2],
+                       }
+    if not data.authors then
+      data.authors = {}
+      local infos  = {}
+      for i = 1, #contributorsinfo do
+        infos [i] = request ("/users/{{{user}}}" % {
+          user = contributorsinfo [i].login,
+        })
       end
-      if info.email and type (info.email) == "string" and info.email ~= "" then
-        result.authors [#result.authors] = result.authors [#result.authors] .. " <{{{email}}}>" % {
-          email = info.email,
-        }
+      for i = 1, #infos do
+        local info = infos [i]
+        if type (info.name) == "string" then
+          data.authors [#data.authors+1] = "{{{name}}} <{{{email}}}>" % {
+            name  = info.name,
+            email = info.email
+                 or "no email",
+          }
+        end
       end
     end
-    return result
   end
 end
