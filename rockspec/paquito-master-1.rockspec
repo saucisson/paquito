@@ -29,6 +29,12 @@ dependencies = {
 build = {
   type    = "builtin",
   modules = {
-    ["paquito"] = "src/paquito.lua",
+    ["paquito"                ] = "src/paquito/init.lua",
+    ["paquito.command.default"] = "src/paquito/command/default.lua",
+    ["paquito.command.load"   ] = "src/paquito/command/load.lua",
+    ["paquito.i18n.en"        ] = "src/paquito/i18n/en.lua",
+    ["paquito.source.github"  ] = "src/paquito/source/github.lua",
+    ["paquito.util.file"      ] = "src/paquito/util/file.lua",
+    ["paquito.util.http"      ] = "src/paquito/util/http.lua",
   },
 }
