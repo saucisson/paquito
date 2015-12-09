@@ -1,4 +1,4 @@
-local Https = require "ssl.https"
+local Http  = require "paquito.util.http"
 local Json  = require "dkjson"
 local Ltn12 = require "ltn12"
 local Mime  = require "mime"
@@ -20,7 +20,7 @@ return function (state)
   end
   local function request (path)
     local received  = {}
-    local _, status = Https.request {
+    local _, status = Http.request {
       method  = "GET",
       url     = "https://api.github.com" .. path,
       headers = {
