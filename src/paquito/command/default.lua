@@ -1,5 +1,5 @@
 local I18n = require "i18n"
-local File = require "paquito.file"
+local File = require "paquito.util.file"
 
 return function ()
   local result = coroutine.wrap (function ()

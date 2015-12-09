@@ -1,6 +1,6 @@
 local Argparse = require "argparse"
 local Coronest = require "coroutine.make"
-local File     = require "paquito.file"
+local File     = require "paquito.util.file"
 local I18n     = require "i18n"
 local Lustache = require "lustache"
 local Serpent  = require "serpent"
